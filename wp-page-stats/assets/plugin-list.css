@@ -65,7 +65,7 @@
 }
 
 @keyframes wps-update-spin {
-    to { transform: rotate(360deg); }
+    to { transform: rotate(-360deg); }
 }
 
 .plugins .wps-update-result[data-state] {

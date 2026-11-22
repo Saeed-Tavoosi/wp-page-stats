@@ -151,10 +151,13 @@ class WPS_Store {
         $start = (new DateTimeImmutable($f['from'], wp_timezone()))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $end = (new DateTimeImmutable($f['to'], wp_timezone()))->modify('+1 day')->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $sql = $wpdb->prepare('occurred_at >= %s AND occurred_at < %s', $start, $end);
-        foreach (array('post_id', 'page_key', 'country', 'browser', 'device', 'member','utm_source','utm_medium','utm_campaign','google_channel') as $key) {
+        foreach (array('post_id', 'page_key', 'country', 'browser', 'device', 'member','utm_source','utm_medium','utm_campaign') as $key) {
             if (($f[$key] ?? '') !== '' && ($key !== 'post_id' || $f[$key] > 0)) {
                 $sql .= $wpdb->prepare(" AND $key = %s", $f[$key]);
             }
+        }
+        if (!empty($f['google_channel'])) {
+            $sql .= $wpdb->prepare(' AND (' . WPS_Acquisition::report_channel_sql() . ') = %s', $f['google_channel']);
         }
         return $sql;
     }
@@ -173,8 +176,9 @@ class WPS_Store {
         $order = $dimension === 'local_day' ? 'label ASC' : 'views DESC, label ASC';
         $type = $dimension === 'goal' ? 'conversion' : 'pageview';
         $where = self::where($f);
-        if ($dimension === 'google_channel') { $where .= " AND google_channel <> ''"; }
-        return $wpdb->get_results($wpdb->prepare("SELECT $dimension AS label, COUNT(*) AS views, COUNT(DISTINCT visitor) AS visitors $extra FROM " . self::table() . " WHERE event_type = %s AND " . $where . " GROUP BY $dimension ORDER BY $order LIMIT %d OFFSET %d", $type, $limit, $offset), ARRAY_A);
+        $group = $dimension === 'google_channel' ? WPS_Acquisition::report_channel_sql() : $dimension;
+        $having = $dimension === 'google_channel' ? " HAVING label <> ''" : '';
+        return $wpdb->get_results($wpdb->prepare("SELECT $group AS label, COUNT(*) AS views, COUNT(DISTINCT visitor) AS visitors $extra FROM " . self::table() . " WHERE event_type = %s AND " . $where . " GROUP BY label$having ORDER BY $order LIMIT %d OFFSET %d", $type, $limit, $offset), ARRAY_A);
     }
 
     public static function conversions($f) {

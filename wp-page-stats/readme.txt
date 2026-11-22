@@ -1,7 +1,7 @@
 === WP Page Stats | آمار صفحات ===
 Requires at least: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.3
+Stable tag: 1.3.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -87,6 +87,10 @@ Consent-required defaults off; configure this and your privacy policy before use
 * Fresh installs default to 30-day retention; version-1 settings remain unchanged.
 
 == Changelog ==
+= 1.3.4 =
+تفکیک ورودی گوگل برای بازدیدهای قبلی از برچسب‌های ذخیره‌شده و دامنهٔ ارجاع‌دهنده استفاده می‌کند.
+توضیح منبع کمپین و لینک تفکیک ورودی گوگل به گزارش اضافه شد و جهت چرخش آیکن بررسی به‌روزرسانی تغییر کرد.
+
 = 1.3.3 =
 بررسی دستی به‌روزرسانی با آیکن متحرک و نمایش نتیجه در همان ردیف افزونه، بدون بارگذاری دوبارهٔ صفحه.
 در صورت اختلال API گیت‌هاب، افزونه از مسیر عمومی انتشار استفاده می‌کند و جزئیات خطای ارتباط را نشان می‌دهد.

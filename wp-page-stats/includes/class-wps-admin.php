@@ -426,7 +426,7 @@ class WPS_Admin {
         $selection = $filters['google_channel'];
         $filters['google_channel'] = '';
         $rows = array_column(WPS_Store::groups($filters, 'google_channel', 3), null, 'label');
-        echo '<section class="wps-panel"><div class="wps-section-title"><h2>تفکیک ورودی گوگل</h2>' . $this->export_link($filters, 'google_channel') . '</div>';
+        echo '<section id="wps-google-acquisition" class="wps-panel"><div class="wps-section-title"><h2>تفکیک ورودی گوگل</h2>' . $this->export_link($filters, 'google_channel') . '</div>';
         echo '<div class="wps-google-channels">';
         foreach (WPS_Acquisition::labels() as $channel => $label) {
             $row = $rows[$channel] ?? array('views' => 0, 'visitors' => 0);
@@ -438,7 +438,7 @@ class WPS_Admin {
         if ($selection !== '') {
             echo '<p><a href="' . esc_url($this->report_url($filters)) . '">برداشتن فیلتر نوع ورودی گوگل</a></p>';
         }
-        echo '<p class="wps-muted">هر کارت را برای فیلتر گزارش انتخاب کنید. «نوع نامشخص» ورودی گوگلی است که نشانهٔ کافی برای تبلیغ یا سرچ ارگانیک ندارد. این تفکیک برای بازدیدهای ثبت‌شده از نسخهٔ ۱٫۳ به بعد است.</p></section>';
+        echo '<p class="wps-muted">هر کارت را برای فیلتر گزارش انتخاب کنید. برای بازدیدهای قبلی هم از برچسب‌های ذخیره‌شده استفاده می‌شود. اگر تنها نشانه، دامنهٔ گوگل باشد، بازدید در «نوع نامشخص» می‌آید.</p></section>';
     }
     private function export_link($f, $dimension) {
         $url = add_query_arg(array_merge($f, array('action' => 'wps_export', 'dimension' => $dimension)), admin_url('admin-post.php'));
@@ -453,7 +453,11 @@ class WPS_Admin {
     }
     private function breakdown($f, $dim, $title) {
         $rows = WPS_Store::groups($f, $dim, 25);
-        echo '<section class="wps-panel"><div class="wps-section-title"><h2>' . esc_html($title) . '</h2>' . $this->export_link($f, $dim) . '</div><div class="wps-table-scroll"><table class="wps-table"><thead><tr><th>عنوان</th><th>'.($dim==='goal' ? 'تبدیل' : 'کل').'</th><th>'.($dim==='goal' ? 'مرورگر' : 'یونیک').'</th></tr></thead><tbody>';
+        echo '<section class="wps-panel"><div class="wps-section-title"><h2>' . esc_html($title) . '</h2>' . $this->export_link($f, $dim) . '</div>';
+        if ($dim === 'utm_source') {
+            echo '<p class="wps-muted">منبعِ برچسب‌خوردهٔ لینک (utm_source). برای آمار تبلیغات و جست‌وجو، <a href="#wps-google-acquisition">تفکیک ورودی گوگل</a> را ببینید.</p>';
+        }
+        echo '<div class="wps-table-scroll"><table class="wps-table"><thead><tr><th>عنوان</th><th>'.($dim==='goal' ? 'تبدیل' : 'کل').'</th><th>'.($dim==='goal' ? 'مرورگر' : 'یونیک').'</th></tr></thead><tbody>';
         foreach ($rows as $r) {
             $label = $r['label'];
             if ($dim === 'country') { $label = $this->country_name($label); }

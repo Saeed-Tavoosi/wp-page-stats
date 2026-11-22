@@ -48,6 +48,7 @@
 .wps-developer { color:#49665c; font-size:12px; }
 @media(max-width:650px) { .wps-release { align-items:flex-start; } }
 
+#wps-google-acquisition { scroll-margin-block-start: 55px; }
 .wps-google-channels {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
