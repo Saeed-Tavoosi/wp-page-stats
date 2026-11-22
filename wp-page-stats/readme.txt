@@ -1,7 +1,7 @@
 === WP Page Stats | آمار صفحات ===
 Requires at least: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,6 +12,11 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 2. Activate and open the آمار صفحات menu.
 3. Open Screen Options on Posts/Pages to toggle total/unique columns independently.
 4. Purge page/CDN caches after activation or changing tracking/consent settings.
+
+== Updates ==
+Sites running 1.3.0 or earlier need to upload wp-page-stats.zip from the v1.3.1 release and choose Replace current with uploaded. Subsequent stable releases appear under Dashboard > Updates and Installed Plugins. Use the version details link to read the changes before updating.
+
+To publish a new version, update Version, WPS_VERSION and Stable tag, and add an entry to the changelog below. Publish a stable GitHub Release tagged vX.Y.Z, enter the release notes, and attach a file named wp-page-stats.zip containing wp-page-stats/wp-page-stats.php at that path. The release must include the attached installation ZIP.
 
 == Features ==
 * Total pageviews and distinct browser visitors for any selected date range.
@@ -26,7 +31,11 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * Configurable 7–365 day retention (fresh installs: 30; upgrades preserve previous retention) and optional removal on uninstall.
 
 == External service ==
-Only the administrator's explicit database-update button downloads data from
+WordPress periodically requests release metadata from the public GitHub API and
+downloads the release ZIP from GitHub when an update is installed. The update
+checker does not send visitor statistics or require a GitHub token.
+
+The administrator's explicit database-update button downloads data from
 https://download.db-ip.com/free/dbip-country-lite-YYYY-MM.csv.gz.
 No visitor address is sent to DB-IP. The bundled database works offline.
 DB-IP terms: https://db-ip.com/terms.php
@@ -77,6 +86,10 @@ Consent-required defaults off; configure this and your privacy policy before use
 * Fresh installs default to 30-day retention; version-1 settings remain unchanged.
 
 == Changelog ==
+= 1.3.1 =
+امکان به‌روزرسانی افزونه از GitHub در پیشخوان وردپرس اضافه شد.
+لیست تغییرات نسخهٔ جدید و لینک تاریخچهٔ نسخه‌ها در صفحهٔ افزونه‌ها در دسترس است.
+
 = 1.3.0 =
 Separates Google Ads, likely organic Google Search and unclassified Google entries in reports, filters and CSV. Click parameter values are not stored.
 

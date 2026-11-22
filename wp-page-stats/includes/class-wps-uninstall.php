@@ -12,6 +12,7 @@ final class WPS_Uninstall {
     private const COLUMN_IDS = array('wps_views', 'wps_unique');
 
     public static function run() {
+        delete_site_transient('wps_github_release');
         if (!is_multisite()) {
             if (self::site()) {
                 self::registration_preferences();

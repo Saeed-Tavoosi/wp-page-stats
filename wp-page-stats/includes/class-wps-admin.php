@@ -23,6 +23,17 @@ class WPS_Admin {
             $links['wps_settings'] = '<a href="' . esc_url($url) . '">تنظیمات</a>';
             $links['wps_woo_plus'] = '<a class="wps-partner-badge" href="' . esc_url('https://artiilus.com') . '" target="_blank" rel="noopener noreferrer" aria-label="وو پلاس (تب جدید)">وو پلاس</a>';
         }
+        if (current_user_can('install_plugins')) {
+            $url = add_query_arg(array(
+                'tab' => 'plugin-information',
+                'plugin' => WPS_Updates::SLUG,
+                'section' => 'changelog',
+                'TB_iframe' => 'true',
+                'width' => 600,
+                'height' => 800,
+            ), is_multisite() ? network_admin_url('plugin-install.php') : admin_url('plugin-install.php'));
+            $links['wps_changelog'] = '<a class="thickbox open-plugin-details-modal" href="' . esc_url($url) . '">تاریخچهٔ نسخه‌ها</a>';
+        }
         return $links;
     }
     private function guard($nonce) {
