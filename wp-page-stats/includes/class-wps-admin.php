@@ -9,6 +9,7 @@ class WPS_Admin {
         add_filter('network_admin_plugin_action_links_' . plugin_basename(WPS_FILE), array($this, 'plugin_action_links'));
         add_filter('plugin_row_meta', array($this, 'plugin_row_meta'), 10, 2);
         add_action('admin_post_wps_check_update', array($this, 'check_update'));
+        add_action('wp_ajax_wps_check_update', array($this, 'check_update_ajax'));
         add_action('admin_footer-plugins.php', array($this, 'update_check_form'));
         add_action('admin_notices', array($this, 'update_check_notice'));
         add_action('network_admin_notices', array($this, 'update_check_notice'));
@@ -30,7 +31,7 @@ class WPS_Admin {
             $links['wps_woo_plus'] = '<a class="wps-partner-badge" href="' . esc_url('https://artiilus.com') . '" target="_blank" rel="noopener noreferrer" aria-label="وو پلاس (تب جدید)">وو پلاس</a>';
         }
         if (current_user_can('update_plugins')) {
-            $links['wps_check_update'] = '<button type="submit" form="wps-update-check" class="button wps-update-button"><span class="dashicons dashicons-update" aria-hidden="true"></span>بررسی به‌روزرسانی</button>';
+            $links['wps_check_update'] = '<button type="submit" form="wps-update-check" class="button wps-update-button"><span class="wps-update-icon" aria-hidden="true"></span>بررسی به‌روزرسانی</button>';
         }
         return $links;
     }
@@ -67,29 +68,67 @@ class WPS_Admin {
         }
         check_admin_referer('wps_check_update');
         $result = WPS_Updates::check_now();
+        $status = is_wp_error($result) ? $result->get_error_code() : $result['status'];
         $screen = is_multisite() ? network_admin_url('plugins.php') : admin_url('plugins.php');
         $redirect = add_query_arg(array(
-            'wps_update_result' => $result,
-            '_wpnonce' => wp_create_nonce('wps_update_result_' . $result),
+            'wps_update_result' => $status,
+            '_wpnonce' => wp_create_nonce('wps_update_result_' . $status),
         ), $screen);
         wp_safe_redirect($redirect, 303);
         exit;
+    }
+    public function check_update_ajax() {
+        if (!current_user_can('update_plugins')) {
+            wp_send_json_error(array('message' => 'دسترسی بررسی به‌روزرسانی را ندارید.'), 403);
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            wp_send_json_error(array('message' => 'درخواست بررسی نامعتبر است.'), 405);
+        }
+        if (!check_ajax_referer('wps_check_update', '_wpnonce', false)) {
+            wp_send_json_error(array('message' => 'اعتبار فرم بررسی تمام شده است. صفحه را تازه کنید و دوباره امتحان کنید.'), 403);
+        }
+
+        $result = WPS_Updates::check_now();
+        if (is_wp_error($result)) {
+            $details = trim($result->get_error_message() . ' ' . $result->get_error_data());
+            wp_send_json_error(array(
+                'message' => $this->update_check_message($result->get_error_code())[1],
+                'detail' => wps_cut(sanitize_text_field($details), 350),
+            ), 502);
+        }
+
+        $result['message'] = $this->update_check_message($result['status'], $result['version'])[1];
+        if ($result['status'] === 'available') {
+            $plugin = plugin_basename(WPS_FILE);
+            $result['upgrade_url'] = add_query_arg(array(
+                'action' => 'upgrade-plugin',
+                'plugin' => rawurlencode($plugin),
+                '_wpnonce' => wp_create_nonce('upgrade-plugin_' . $plugin),
+            ), is_multisite() ? network_admin_url('update.php') : admin_url('update.php'));
+        }
+        wp_send_json_success($result);
     }
     public function update_check_notice() {
         global $pagenow;
         if ($pagenow !== 'plugins.php' || !current_user_can('update_plugins')) { return; }
         $result = sanitize_key($_GET['wps_update_result'] ?? '');
-        $messages = array(
-            'available' => array('info', 'نسخهٔ جدید آمار صفحات در دسترس است. از لینک به‌روزرسانی در ردیف افزونه استفاده کنید.'),
-            'current' => array('success', 'آمار صفحات به‌روز است.'),
-            'missing_release' => array('warning', 'بستهٔ انتشار معتبر آمار صفحات در گیت‌هاب پیدا نشد.'),
-            'github_limit' => array('warning', 'گیت‌هاب درخواست بررسی را نپذیرفت. کمی بعد دوباره امتحان کنید.'),
-            'github_unreachable' => array('warning', 'بررسی نسخه کامل نشد. پاسخ معتبری از گیت‌هاب دریافت نشد.'),
-        );
-        if (!isset($messages[$result]) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'] ?? '')), 'wps_update_result_' . $result)) {
+        $message = $this->update_check_message($result);
+        if (!$message || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'] ?? '')), 'wps_update_result_' . $result)) {
             return;
         }
-        echo '<div class="notice notice-' . esc_attr($messages[$result][0]) . ' is-dismissible"><p>' . esc_html($messages[$result][1]) . '</p></div>';
+        echo '<div class="notice notice-' . esc_attr($message[0]) . ' is-dismissible"><p>' . esc_html($message[1]) . '</p></div>';
+    }
+    private function update_check_message($status, $version = '') {
+        $messages = array(
+            'available' => array('info', $version ? 'نسخهٔ ' . $version . ' در دسترس است.' : 'نسخهٔ جدید آمار صفحات در دسترس است. از لینک به‌روزرسانی در ردیف افزونه استفاده کنید.'),
+            'current' => array('success', 'نسخهٔ ' . ($version ?: WPS_VERSION) . ' به‌روز است.'),
+            'missing_release' => array('warning', 'انتشار پایدار آمار صفحات در گیت‌هاب پیدا نشد.'),
+            'missing_release_asset' => array('warning', 'فایل نصب wp-page-stats.zip در آخرین انتشار پایدار گیت‌هاب پیدا نشد.'),
+            'invalid_release' => array('warning', 'پاسخ گیت‌هاب برای تشخیص نسخه معتبر نبود.'),
+            'github_limit' => array('warning', 'گیت‌هاب درخواست بررسی نسخه را نپذیرفت.'),
+            'github_unreachable' => array('warning', 'ارتباط هاست با گیت‌هاب برای بررسی نسخه برقرار نشد.'),
+        );
+        return $messages[$status] ?? null;
     }
     private function guard($nonce) {
         if (!current_user_can('manage_options')) { wp_die('دسترسی کافی نیست.', '', array('response' => 403)); }
@@ -123,14 +162,20 @@ class WPS_Admin {
         );
     }
     public function assets($hook) {
-        if (current_user_can('manage_options')) {
+        if ($hook === 'plugins.php' || current_user_can('manage_options')) {
             wp_enqueue_style('wps-font', plugins_url('assets/font.css', WPS_FILE), array(), WPS_VERSION);
             if ($hook === 'index.php') {
                 wp_enqueue_style('wps-widget', plugins_url('assets/widget.css', WPS_FILE), array('wps-font'), WPS_VERSION);
             }
         }
         if ($hook === 'plugins.php') {
-            wp_enqueue_style('wps-plugin-list', plugins_url('assets/plugin-list.css', WPS_FILE), array(), WPS_VERSION);
+            wp_enqueue_style('wps-plugin-list', plugins_url('assets/plugin-list.css', WPS_FILE), array('wps-font'), WPS_VERSION);
+            if (current_user_can('update_plugins')) {
+                wp_enqueue_script('wps-plugin-list', plugins_url('assets/plugin-list.js', WPS_FILE), array(), WPS_VERSION, array(
+                    'in_footer' => true,
+                    'strategy' => 'defer',
+                ));
+            }
         }
         if (in_array($hook,array('edit.php','post.php','post-new.php'),true)) {
             wp_enqueue_style('wps-checks', plugins_url('assets/checks.css',WPS_FILE),array(),WPS_VERSION);

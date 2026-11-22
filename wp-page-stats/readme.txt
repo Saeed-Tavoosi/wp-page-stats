@@ -1,7 +1,7 @@
 === WP Page Stats | آمار صفحات ===
 Requires at least: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.2
+Stable tag: 1.3.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,9 +31,10 @@ To publish a new version, update Version, WPS_VERSION and Stable tag, and add an
 * Configurable 7–365 day retention (fresh installs: 30; upgrades preserve previous retention) and optional removal on uninstall.
 
 == External service ==
-WordPress periodically requests release metadata from the public GitHub API and
-downloads the release ZIP from GitHub when an update is installed. The update
-checker does not send visitor statistics or require a GitHub token.
+WordPress periodically requests release metadata from the public GitHub API.
+If the API is unavailable, the checker uses the public GitHub release links.
+WordPress downloads the release ZIP from GitHub when an update is installed.
+The checker does not send visitor statistics or require a GitHub token.
 
 The administrator's explicit database-update button downloads data from
 https://download.db-ip.com/free/dbip-country-lite-YYYY-MM.csv.gz.
@@ -86,6 +87,10 @@ Consent-required defaults off; configure this and your privacy policy before use
 * Fresh installs default to 30-day retention; version-1 settings remain unchanged.
 
 == Changelog ==
+= 1.3.3 =
+بررسی دستی به‌روزرسانی با آیکن متحرک و نمایش نتیجه در همان ردیف افزونه، بدون بارگذاری دوبارهٔ صفحه.
+در صورت اختلال API گیت‌هاب، افزونه از مسیر عمومی انتشار استفاده می‌کند و جزئیات خطای ارتباط را نشان می‌دهد.
+
 = 1.3.2 =
 Moved the changelog link beside the author credit. Added a plugin-specific manual GitHub update check in the Installed Plugins list.
 

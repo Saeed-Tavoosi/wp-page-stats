@@ -27,14 +27,82 @@
     line-height: 1.6;
 }
 
-.plugins .row-actions .wps-update-button:hover {
+.plugins .row-actions .wps-update-button:hover,
+.plugins .row-actions .wps-update-button:focus-visible {
     border-color: #147d68;
     background: #e0f0e9;
     color: #0b5f4f;
 }
 
-.plugins .wps-update-button .dashicons {
-    width: 15px;
-    height: 15px;
-    font-size: 15px;
+.plugins .row-actions .wps-update-button[aria-busy="true"] {
+    cursor: progress;
+}
+
+.plugins .wps-update-icon {
+    position: relative;
+    box-sizing: border-box;
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
+    border: 1.5px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+}
+
+.plugins .wps-update-icon::after {
+    content: '';
+    position: absolute;
+    inset-block-start: -1px;
+    inset-inline-end: -2px;
+    width: 4px;
+    height: 4px;
+    border-block-end: 1.5px solid currentColor;
+    border-inline-end: 1.5px solid currentColor;
+}
+
+.plugins .wps-update-button[aria-busy="true"] .wps-update-icon {
+    animation: wps-update-spin 850ms linear infinite;
+}
+
+@keyframes wps-update-spin {
+    to { transform: rotate(360deg); }
+}
+
+.plugins .wps-update-result[data-state] {
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: 100%;
+    margin-block-start: 5px;
+    padding: 4px 8px;
+    border: 1px solid #b7d9ca;
+    border-radius: 6px;
+    background: #f0f8f4;
+    color: #0b5f4f;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.plugins .wps-update-result[data-state="error"] {
+    border-color: #e6bca5;
+    background: #fff7f2;
+    color: #843a23;
+}
+
+.plugins .wps-update-result .wps-update-detail {
+    display: block;
+    margin-block-start: 2px;
+}
+
+.plugins .wps-update-result a {
+    margin-inline-start: 8px;
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .plugins .wps-update-button[aria-busy="true"] .wps-update-icon {
+        animation: none;
+    }
 }

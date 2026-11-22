@@ -34,7 +34,7 @@ final class WPS_Updates {
     public static function check_now() {
         $release = self::latest_release(true);
         if (is_wp_error($release)) {
-            return $release->get_error_code();
+            return $release;
         }
 
         $plugin = plugin_basename(WPS_FILE);
@@ -60,7 +60,10 @@ final class WPS_Updates {
             $state->no_update[$plugin] = $update;
         }
         set_site_transient('update_plugins', $state);
-        return $available ? 'available' : 'current';
+        return array(
+            'status' => $available ? 'available' : 'current',
+            'version' => $available ? $release['version'] : WPS_VERSION,
+        );
     }
 
     public static function plugin_information($result, $action, $args) {
@@ -110,28 +113,44 @@ final class WPS_Updates {
             }
         }
 
+        $release = self::api_release();
+        if (is_wp_error($release) && $release->get_error_code() !== 'missing_release_asset') {
+            $public_release = self::public_release();
+            if (!is_wp_error($public_release) || $public_release->get_error_code() === 'missing_release_asset') {
+                $release = $public_release;
+            } else {
+                $release->add_data($public_release->get_error_message());
+            }
+        }
+
+        if (!is_wp_error($release)) {
+            set_site_transient(self::CACHE_KEY, $release, 30 * MINUTE_IN_SECONDS);
+        } elseif (!$fresh) {
+            set_site_transient(self::CACHE_KEY, array(), 5 * MINUTE_IN_SECONDS);
+        }
+        return $release;
+    }
+
+    private static function api_release() {
         $response = wp_safe_remote_get(self::RELEASE_API, array(
             'headers' => array('Accept' => 'application/vnd.github+json'),
             'user-agent' => 'WP Page Stats/' . WPS_VERSION,
             'timeout' => 5,
         ));
-        $release = array();
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-            $release = self::parse_release(json_decode(wp_remote_retrieve_body($response), true));
+        if (is_wp_error($response)) {
+            return new WP_Error('github_unreachable', $response->get_error_message());
         }
-
-        if ($release || !$fresh) {
-            set_site_transient(self::CACHE_KEY, $release, ($release ? 30 : 5) * MINUTE_IN_SECONDS);
-            return $release;
+        $code = (int) wp_remote_retrieve_response_code($response);
+        if ($code === 200) {
+            return self::parse_release(json_decode(wp_remote_retrieve_body($response), true));
         }
-        $code = is_wp_error($response) ? 0 : wp_remote_retrieve_response_code($response);
-        if ($code === 200 || $code === 404) {
-            return new WP_Error('missing_release');
+        if ($code === 404) {
+            return new WP_Error('missing_release', 'API · HTTP 404');
         }
         if ($code === 403 || $code === 429) {
-            return new WP_Error('github_limit');
+            return new WP_Error('github_limit', 'API · HTTP ' . $code);
         }
-        return new WP_Error('github_unreachable');
+        return new WP_Error('github_unreachable', 'API · HTTP ' . $code);
     }
 
     private static function parse_release($data) {
@@ -139,24 +158,67 @@ final class WPS_Updates {
         if (($data['draft'] ?? true) !== false || ($data['prerelease'] ?? true) !== false
             || !is_string($tag) || !preg_match('/\Av?(\d+\.\d+\.\d+)\z/', $tag, $matches)
             || !is_array($data['assets'] ?? null)) {
-            return array();
+            return new WP_Error('invalid_release', 'پاسخ API شامل مشخصات یک انتشار پایدار نبود.');
         }
 
-        $package = self::REPOSITORY . '/releases/download/' . $tag . '/' . self::ASSET;
+        $release = self::release_data($tag, $matches[1]);
         foreach ($data['assets'] as $asset) {
             if (($asset['name'] ?? '') === self::ASSET && ($asset['state'] ?? '') === 'uploaded'
-                && ($asset['size'] ?? 0) > 0 && ($asset['browser_download_url'] ?? '') === $package) {
-                return array(
-                    'version' => $matches[1],
-                    'package' => $package,
-                    'url' => self::REPOSITORY . '/releases/tag/' . $tag,
-                    'notes' => is_string($data['body'] ?? null) ? $data['body'] : '',
-                    'published_at' => is_string($data['published_at'] ?? null) ? $data['published_at'] : '',
-                );
+                && ($asset['size'] ?? 0) > 0 && ($asset['browser_download_url'] ?? '') === $release['package']) {
+                $release['notes'] = is_string($data['body'] ?? null) ? $data['body'] : '';
+                $release['published_at'] = is_string($data['published_at'] ?? null) ? $data['published_at'] : '';
+                return $release;
             }
         }
 
-        return array();
+        return new WP_Error('missing_release_asset');
+    }
+
+    private static function public_release() {
+        $args = array('timeout' => 4, 'redirection' => 0);
+        $latest = wp_safe_remote_head(self::REPOSITORY . '/releases/latest', $args);
+        $tag_url = self::redirect_location($latest);
+        if (strpos($tag_url, '/') === 0) {
+            $tag_url = 'https://github.com' . $tag_url;
+        }
+        $tag_prefix = preg_quote(self::REPOSITORY . '/releases/tag/', '~');
+        if (!preg_match('~\A' . $tag_prefix . '(v?(\d+\.\d+\.\d+))\z~', $tag_url, $matches)) {
+            return new WP_Error('public_release_unavailable', self::public_response_detail($latest));
+        }
+
+        $release = self::release_data($matches[1], $matches[2]);
+        $asset = wp_safe_remote_head($release['package'], $args);
+        $location = self::redirect_location($asset);
+        if (preg_match('~\Ahttps://(?:release-assets|objects)\.githubusercontent\.com/~', $location)) {
+            return $release;
+        }
+        if ((int) wp_remote_retrieve_response_code($asset) === 404) {
+            return new WP_Error('missing_release_asset');
+        }
+        return new WP_Error('public_release_unavailable', self::public_response_detail($asset));
+    }
+
+    private static function redirect_location($response) {
+        if (in_array((int) wp_remote_retrieve_response_code($response), array(301, 302, 303, 307, 308), true)) {
+            $location = wp_remote_retrieve_header($response, 'location');
+            return is_string($location) ? $location : '';
+        }
+        return '';
+    }
+
+    private static function public_response_detail($response) {
+        $detail = is_wp_error($response) ? $response->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($response);
+        return 'github.com · ' . $detail;
+    }
+
+    private static function release_data($tag, $version) {
+        return array(
+            'version' => $version,
+            'package' => self::REPOSITORY . '/releases/download/' . $tag . '/' . self::ASSET,
+            'url' => self::REPOSITORY . '/releases/tag/' . $tag,
+            'notes' => '',
+            'published_at' => '',
+        );
     }
 
     private static function local_changelog() {

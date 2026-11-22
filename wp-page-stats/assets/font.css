@@ -15,7 +15,8 @@
 #wps_unique-hide + label,
 .column-wps_views,
 .column-wps_unique,
-.plugins tr[data-plugin="wp-page-stats/wp-page-stats.php"] .row-actions {
+.plugins tr[data-plugin="wp-page-stats/wp-page-stats.php"] .row-actions,
+.plugins .wps-update-result {
     font-family: "WP Stats Vazirmatn", Tahoma, sans-serif;
 }
 
