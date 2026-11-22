@@ -14,17 +14,53 @@ final class WPS_Updates {
         }
 
         $release = self::latest_release();
-        if (!$release) {
+        if (!$release || is_wp_error($release)) {
             return $update;
         }
 
+        return self::update_data($release, $plugin_data['RequiresPHP'] ?? '');
+    }
+
+    private static function update_data($release, $requires_php) {
         return array(
             'slug' => self::SLUG,
             'version' => $release['version'],
             'url' => $release['url'],
             'package' => $release['package'],
-            'requires_php' => $plugin_data['RequiresPHP'] ?? '',
+            'requires_php' => $requires_php,
         );
+    }
+
+    public static function check_now() {
+        $release = self::latest_release(true);
+        if (is_wp_error($release)) {
+            return $release->get_error_code();
+        }
+
+        $plugin = plugin_basename(WPS_FILE);
+        $header = get_plugin_data(WPS_FILE, false, false);
+        $update = (object) self::update_data($release, $header['RequiresPHP']);
+        $update->plugin = $plugin;
+        $update->id = self::REPOSITORY;
+        $update->new_version = $release['version'];
+
+        $state = get_site_transient('update_plugins');
+        if (!is_object($state)) {
+            $state = new stdClass();
+        }
+        $state->response = (array) ($state->response ?? array());
+        $state->no_update = (array) ($state->no_update ?? array());
+        $state->checked = (array) ($state->checked ?? array());
+        unset($state->response[$plugin], $state->no_update[$plugin]);
+        $state->checked[$plugin] = WPS_VERSION;
+        $available = version_compare($release['version'], WPS_VERSION, '>');
+        if ($available) {
+            $state->response[$plugin] = $update;
+        } else {
+            $state->no_update[$plugin] = $update;
+        }
+        set_site_transient('update_plugins', $state);
+        return $available ? 'available' : 'current';
     }
 
     public static function plugin_information($result, $action, $args) {
@@ -46,7 +82,7 @@ final class WPS_Updates {
             'sections' => array('description' => wpautop(esc_html($plugin['Description']))),
         );
 
-        if ($release && version_compare($release['version'], $info->version, '>')) {
+        if ($release && !is_wp_error($release) && version_compare($release['version'], $info->version, '>')) {
             $info->version = $release['version'];
             $info->download_link = $release['package'];
             $info->last_updated = $release['published_at'];
@@ -66,10 +102,12 @@ final class WPS_Updates {
         }
     }
 
-    private static function latest_release() {
-        $cached = get_site_transient(self::CACHE_KEY);
-        if (is_array($cached)) {
-            return $cached;
+    private static function latest_release($fresh = false) {
+        if (!$fresh) {
+            $cached = get_site_transient(self::CACHE_KEY);
+            if (is_array($cached)) {
+                return $cached;
+            }
         }
 
         $response = wp_safe_remote_get(self::RELEASE_API, array(
@@ -82,8 +120,18 @@ final class WPS_Updates {
             $release = self::parse_release(json_decode(wp_remote_retrieve_body($response), true));
         }
 
-        set_site_transient(self::CACHE_KEY, $release, ($release ? 30 : 5) * MINUTE_IN_SECONDS);
-        return $release;
+        if ($release || !$fresh) {
+            set_site_transient(self::CACHE_KEY, $release, ($release ? 30 : 5) * MINUTE_IN_SECONDS);
+            return $release;
+        }
+        $code = is_wp_error($response) ? 0 : wp_remote_retrieve_response_code($response);
+        if ($code === 200 || $code === 404) {
+            return new WP_Error('missing_release');
+        }
+        if ($code === 403 || $code === 429) {
+            return new WP_Error('github_limit');
+        }
+        return new WP_Error('github_unreachable');
     }
 
     private static function parse_release($data) {

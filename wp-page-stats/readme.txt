@@ -1,7 +1,7 @@
 === WP Page Stats | آمار صفحات ===
 Requires at least: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -86,6 +86,9 @@ Consent-required defaults off; configure this and your privacy policy before use
 * Fresh installs default to 30-day retention; version-1 settings remain unchanged.
 
 == Changelog ==
+= 1.3.2 =
+Moved the changelog link beside the author credit. Added a plugin-specific manual GitHub update check in the Installed Plugins list.
+
 = 1.3.1 =
 امکان به‌روزرسانی افزونه از GitHub در پیشخوان وردپرس اضافه شد.
 لیست تغییرات نسخهٔ جدید و لینک تاریخچهٔ نسخه‌ها در صفحهٔ افزونه‌ها در دسترس است.

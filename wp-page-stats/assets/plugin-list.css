@@ -12,3 +12,29 @@
     background: #0b5f4f;
     color: #fff;
 }
+
+.plugins .row-actions .wps-update-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 1px 8px;
+    border-color: #b7d9ca;
+    border-radius: 6px;
+    background: #f0f8f4;
+    color: #0b5f4f;
+    font: inherit;
+    line-height: 1.6;
+}
+
+.plugins .row-actions .wps-update-button:hover {
+    border-color: #147d68;
+    background: #e0f0e9;
+    color: #0b5f4f;
+}
+
+.plugins .wps-update-button .dashicons {
+    width: 15px;
+    height: 15px;
+    font-size: 15px;
+}

@@ -6,6 +6,12 @@ class WPS_Admin {
     public function __construct() {
         add_action('admin_menu', array($this, 'menu'));
         add_filter('plugin_action_links_' . plugin_basename(WPS_FILE), array($this, 'plugin_action_links'));
+        add_filter('network_admin_plugin_action_links_' . plugin_basename(WPS_FILE), array($this, 'plugin_action_links'));
+        add_filter('plugin_row_meta', array($this, 'plugin_row_meta'), 10, 2);
+        add_action('admin_post_wps_check_update', array($this, 'check_update'));
+        add_action('admin_footer-plugins.php', array($this, 'update_check_form'));
+        add_action('admin_notices', array($this, 'update_check_notice'));
+        add_action('network_admin_notices', array($this, 'update_check_notice'));
         add_action('admin_enqueue_scripts', array($this, 'assets'));
         add_action('admin_post_wps_settings', array($this, 'save_settings'));
         add_action('admin_post_wps_geo', array($this, 'update_geo'));
@@ -23,18 +29,67 @@ class WPS_Admin {
             $links['wps_settings'] = '<a href="' . esc_url($url) . '">تنظیمات</a>';
             $links['wps_woo_plus'] = '<a class="wps-partner-badge" href="' . esc_url('https://artiilus.com') . '" target="_blank" rel="noopener noreferrer" aria-label="وو پلاس (تب جدید)">وو پلاس</a>';
         }
-        if (current_user_can('install_plugins')) {
-            $url = add_query_arg(array(
-                'tab' => 'plugin-information',
-                'plugin' => WPS_Updates::SLUG,
-                'section' => 'changelog',
-                'TB_iframe' => 'true',
-                'width' => 600,
-                'height' => 800,
-            ), is_multisite() ? network_admin_url('plugin-install.php') : admin_url('plugin-install.php'));
-            $links['wps_changelog'] = '<a class="thickbox open-plugin-details-modal" href="' . esc_url($url) . '">تاریخچهٔ نسخه‌ها</a>';
+        if (current_user_can('update_plugins')) {
+            $links['wps_check_update'] = '<button type="submit" form="wps-update-check" class="button wps-update-button"><span class="dashicons dashicons-update" aria-hidden="true"></span>بررسی به‌روزرسانی</button>';
         }
         return $links;
+    }
+    public function plugin_row_meta($meta, $file) {
+        if ($file !== plugin_basename(WPS_FILE) || !current_user_can('install_plugins')) {
+            return $meta;
+        }
+        $url = add_query_arg(array(
+            'tab' => 'plugin-information',
+            'plugin' => WPS_Updates::SLUG,
+            'section' => 'changelog',
+            'TB_iframe' => 'true',
+            'width' => 600,
+            'height' => 800,
+        ), is_multisite() ? network_admin_url('plugin-install.php') : admin_url('plugin-install.php'));
+        $link = '<a class="thickbox open-plugin-details-modal" href="' . esc_url($url) . '">تاریخچهٔ نسخه‌ها</a>';
+        array_splice($meta, 2, 0, array($link));
+        return $meta;
+    }
+    public function update_check_form() {
+        if (!current_user_can('update_plugins')) { return; }
+        // The plugin list already has a bulk-actions form, so use a separate form.
+        echo '<form id="wps-update-check" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="wps_check_update">';
+        wp_nonce_field('wps_check_update', '_wpnonce', false);
+        echo '</form>';
+    }
+    public function check_update() {
+        if (!current_user_can('update_plugins')) {
+            wp_die('دسترسی کافی نیست.', '', array('response' => 403));
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            wp_die('درخواست نامعتبر.', '', array('response' => 405));
+        }
+        check_admin_referer('wps_check_update');
+        $result = WPS_Updates::check_now();
+        $screen = is_multisite() ? network_admin_url('plugins.php') : admin_url('plugins.php');
+        $redirect = add_query_arg(array(
+            'wps_update_result' => $result,
+            '_wpnonce' => wp_create_nonce('wps_update_result_' . $result),
+        ), $screen);
+        wp_safe_redirect($redirect, 303);
+        exit;
+    }
+    public function update_check_notice() {
+        global $pagenow;
+        if ($pagenow !== 'plugins.php' || !current_user_can('update_plugins')) { return; }
+        $result = sanitize_key($_GET['wps_update_result'] ?? '');
+        $messages = array(
+            'available' => array('info', 'نسخهٔ جدید آمار صفحات در دسترس است. از لینک به‌روزرسانی در ردیف افزونه استفاده کنید.'),
+            'current' => array('success', 'آمار صفحات به‌روز است.'),
+            'missing_release' => array('warning', 'بستهٔ انتشار معتبر آمار صفحات در گیت‌هاب پیدا نشد.'),
+            'github_limit' => array('warning', 'گیت‌هاب درخواست بررسی را نپذیرفت. کمی بعد دوباره امتحان کنید.'),
+            'github_unreachable' => array('warning', 'بررسی نسخه کامل نشد. پاسخ معتبری از گیت‌هاب دریافت نشد.'),
+        );
+        if (!isset($messages[$result]) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'] ?? '')), 'wps_update_result_' . $result)) {
+            return;
+        }
+        echo '<div class="notice notice-' . esc_attr($messages[$result][0]) . ' is-dismissible"><p>' . esc_html($messages[$result][1]) . '</p></div>';
     }
     private function guard($nonce) {
         if (!current_user_can('manage_options')) { wp_die('دسترسی کافی نیست.', '', array('response' => 403)); }
