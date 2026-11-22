@@ -1,0 +1,27 @@
+@font-face {
+    font-family: "WP Stats Vazirmatn";
+    src: url("fonts/Vazirmatn.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+.wps,
+.wps-options,
+#wps_summary,
+#wps-page,
+#toplevel_page_wp-page-stats,
+#wps_views-hide + label,
+#wps_unique-hide + label,
+.column-wps_views,
+.column-wps_unique,
+.plugins tr[data-plugin="wp-page-stats/wp-page-stats.php"] .row-actions {
+    font-family: "WP Stats Vazirmatn", Tahoma, sans-serif;
+}
+
+.wps :is(button, input, select, textarea, code, pre),
+.wps :is(input, textarea)::placeholder,
+#wps_summary :is(button, input, select, .hndle),
+#wps-page :is(button, input, select) {
+    font-family: inherit;
+}

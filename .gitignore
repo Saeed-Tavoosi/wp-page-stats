@@ -1,0 +1,10 @@
+/tests/runtime/
+/tests/mysql-data/
+/tests/state.json
+/tests/*.log
+/tests/*.pid
+/tests/geo-fixture/
+/tests/chrome-profile/
+/dist/wordpress.zip
+/dist/*.csv.gz
+

@@ -1,0 +1,5 @@
+.wps input:is([type=checkbox],[type=radio]),#wps-page input[type=checkbox],#wps_views-hide,#wps_unique-hide{appearance:none!important;width:21px;height:21px;min-width:21px;margin-inline:0 6px;vertical-align:middle;border:2px solid #baccc7;background:#fff;box-shadow:none;border-radius:50%;cursor:pointer;display:inline-grid;place-content:center}
+.wps input:is([type=checkbox],[type=radio]):hover,#wps-page input:hover,#wps_views-hide:hover,#wps_unique-hide:hover{border-color:#14846c}
+.wps input:is([type=checkbox],[type=radio]):checked,#wps-page input[type=checkbox]:checked,#wps_views-hide:checked,#wps_unique-hide:checked{background:#117760;border-color:#117760}
+.wps input:is([type=checkbox],[type=radio]):checked::before,#wps-page input:checked::before,#wps_views-hide:checked::before,#wps_unique-hide:checked::before{content:"";display:block;float:none;background:none;margin:0;width:8px;height:4px;border:solid white;border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg);border-radius:0}
+.wps input:focus-visible,#wps-page input:focus-visible,#wps_views-hide:focus-visible,#wps_unique-hide:focus-visible{outline:2px solid #177960;outline-offset:3px}

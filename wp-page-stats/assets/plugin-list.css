@@ -1,0 +1,14 @@
+.plugins .row-actions a.wps-partner-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: #147d68;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.plugins .row-actions a.wps-partner-badge:hover,
+.plugins .row-actions a.wps-partner-badge:focus-visible {
+    background: #0b5f4f;
+    color: #fff;
+}
