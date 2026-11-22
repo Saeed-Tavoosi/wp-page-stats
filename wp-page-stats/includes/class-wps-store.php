@@ -188,6 +188,12 @@ class WPS_Store {
             . self::where($f) . ' LIMIT 1');
     }
 
+    public static function page_count($f) {
+        global $wpdb;
+        return (int) $wpdb->get_var('SELECT COUNT(DISTINCT page_key) FROM ' . self::table()
+            . " WHERE event_type = 'pageview' AND " . self::where($f));
+    }
+
     public static function conversions($f) {
         global $wpdb;
         $t = self::table(); $where = self::where($f);

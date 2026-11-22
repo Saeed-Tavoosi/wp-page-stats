@@ -19,6 +19,7 @@ class WPS_Admin {
         add_action('admin_post_wps_export', array($this, 'export'));
         add_action('admin_post_wps_widget_period', array($this, 'save_widget_period'));
         add_action('wp_ajax_wps_find_page', array($this, 'find_page'));
+        add_action('wp_ajax_wps_report_pages', array($this, 'report_pages_ajax'));
         add_action('init', array($this, 'register_columns'), 30);
         add_action('add_meta_boxes', array($this, 'meta_boxes'));
         add_action('save_post', array($this, 'save_meta'));
@@ -186,7 +187,7 @@ class WPS_Admin {
         wp_enqueue_style('wps-admin', plugins_url('assets/admin.css', WPS_FILE), array(), WPS_VERSION . '.' . filemtime(WPS_DIR . 'assets/admin.css'));
         wp_enqueue_script('wps-calendar', plugins_url('assets/calendar.js', WPS_FILE), array(), WPS_VERSION, true);
         wp_enqueue_script('wps-admin', plugins_url('assets/admin.js', WPS_FILE), array('wps-calendar'), WPS_VERSION, true);
-        wp_add_inline_script('wps-admin', 'window.WPSAdmin=' . wp_json_encode(array('ajax' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('wps_find_page'))) . ';', 'before');
+        wp_add_inline_script('wps-admin', 'window.WPSAdmin=' . wp_json_encode(array('ajax' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('wps_find_page'), 'pagesNonce' => wp_create_nonce('wps_report_pages'))) . ';', 'before');
     }
     public function register_columns() {
         if (!current_user_can('manage_options')) { return; }
@@ -371,7 +372,7 @@ class WPS_Admin {
         $f = WPS_Store::filters(wp_unslash($_GET));
         $s = wps_settings();
         if (!$s['enabled']) { echo '<div class="notice notice-warning inline"><p>آمارگیری متوقف است. برای ثبت بازدیدهای جدید، آن را در تنظیمات فعال کنید.</p></div>'; }
-        echo '<form class="wps-panel wps-filter" method="get"><input type="hidden" name="page" value="wp-page-stats">';
+        echo '<form id="wps-report-filters" class="wps-panel wps-filter" action="#wps-report-filters" method="get"><input type="hidden" name="page" value="wp-page-stats">';
         WPS_Features::date_fields($f);
         echo '<div class="wps-page-picker"><label for="wps-page-search">صفحه / نوشته</label><input id="wps-page-search" type="search" placeholder="عنوان یا شناسهٔ صفحه…" autocomplete="off" aria-controls="wps-page-results" value="' . esc_attr($f['post_id'] ? get_the_title($f['post_id']) : '') . '"><span class="wps-search-spinner" hidden aria-hidden="true"></span><div id="wps-page-results"></div><span id="wps-page-status" class="screen-reader-text" role="status"></span><input type="hidden" name="post_id" id="wps-post-id" value="' . esc_attr($f['post_id']) . '"></div>';
         if ($f['page_key']) { echo '<input type="hidden" name="page_key" value="' . esc_attr($f['page_key']) . '"><span class="wps-badge">فیلتر یک مسیر فعال است</span>'; }
@@ -386,10 +387,10 @@ class WPS_Admin {
         foreach (array('utm_source'=>'منبع کمپین','utm_medium'=>'رسانهٔ کمپین','utm_campaign'=>'نام کمپین') as $name=>$label) {
             echo '<label>'.esc_html($label).'<input name="'.esc_attr($name).'" value="'.esc_attr($f[$name]).'" maxlength="80" dir="auto" placeholder="همه"></label>';
         }
-        echo '</div></details><div class="wps-filter-actions"><button class="button button-primary">اعمال فیلتر</button><a class="button" href="' . esc_url($this->report_url()) . '">پاک کردن</a></div></form>';
+        echo '</div></details><div class="wps-filter-actions"><button class="button button-primary">اعمال فیلتر</button><a class="button" href="' . esc_url($this->report_url() . '#wps-report-filters') . '">پاک کردن</a></div></form>';
         echo '<div class="wps-quick">بازهٔ سریع: ';
         foreach (array(1 => 'امروز', 7 => '۷ روز', 30 => '۳۰ روز', 90 => '۹۰ روز') as $days => $label) {
-            echo '<a href="' . esc_url($this->report_url(array_merge($f, array('from' => wp_date('Y-m-d', time() - ($days - 1) * DAY_IN_SECONDS), 'to' => wp_date('Y-m-d'))))) . '">' . esc_html($label) . '</a>';
+            echo '<a href="' . esc_url($this->report_url(array_merge($f, array('from' => wp_date('Y-m-d', time() - ($days - 1) * DAY_IN_SECONDS), 'to' => wp_date('Y-m-d')))) . '#wps-report-filters') . '">' . esc_html($label) . '</a>';
         }
         echo '</div>';
         $active = array(
@@ -421,21 +422,9 @@ class WPS_Admin {
         $this->google_channels($f);
         $this->breakdown($f, 'referrer', 'سایت‌های ارجاع‌دهنده');
         echo '</div></section><section class="wps-report-section" aria-labelledby="wps-audience-title"><h2 id="wps-audience-title">صفحات و مخاطبان</h2>';
-        $page = min(100000, max(1, absint($_GET['report_page'] ?? 1)));
-        $rows = WPS_Store::groups($f, 'page_key', 26, ($page - 1) * 25);
-        $next = count($rows) > 25; $rows = array_slice($rows, 0, 25);
-        echo '<section class="wps-panel"><div class="wps-section-title"><h2>صفحه‌ها و نوشته‌ها</h2>' . $this->export_link($f, 'page_key') . '</div><div class="wps-table-scroll"><table class="wps-table"><thead><tr><th>صفحه</th><th>بازدید کل</th><th>یونیک</th><th>جزئیات</th></tr></thead><tbody>';
-        foreach ($rows as $r) {
-            $args = $f;
-            if ($r['post_id']) { $args['post_id'] = $r['post_id']; $args['page_key'] = ''; }
-            else { $args['page_key'] = $r['label']; $args['post_id'] = 0; }
-            echo '<tr><td><strong>' . esc_html($r['title'] ?: $r['path']) . '</strong><small class="wps-path" dir="ltr">' . esc_html(rawurldecode($r['path'])) . '</small></td><td>' . esc_html(number_format_i18n($r['views'])) . '</td><td>' . esc_html(number_format_i18n($r['visitors'])) . '</td><td><a href="' . esc_url($this->report_url($args)) . '">گزارش صفحه ←</a></td></tr>';
-        }
-        if (!$rows) { echo '<tr><td colspan="4">داده‌ای برای نمایش وجود ندارد.</td></tr>'; }
-        echo '</tbody></table></div><div class="wps-pagination">';
-        if ($page > 1) { echo '<a class="button" href="' . esc_url($this->report_url(array_merge($f, array('report_page' => $page - 1)))) . '">قبلی</a>'; }
-        echo '<span>صفحهٔ ' . esc_html(number_format_i18n($page)) . '</span>';
-        if ($next) { echo '<a class="button" href="' . esc_url($this->report_url(array_merge($f, array('report_page' => $page + 1)))) . '">بعدی</a>'; }
+        echo '<section id="wps-report-pages" class="wps-panel" aria-labelledby="wps-report-pages-title"><div class="wps-section-title"><h2 id="wps-report-pages-title" tabindex="-1">صفحه‌ها و نوشته‌ها</h2>' . $this->export_link($f, 'page_key') . '</div>';
+        echo '<p id="wps-report-pages-status" class="wps-page-status" role="status"></p><div id="wps-report-page-results">';
+        $this->report_pages($f, $_GET['report_page'] ?? 1);
         echo '</div></section><div class="wps-breakdowns">';
         foreach (array('country' => 'کشورها', 'device' => 'دستگاه‌ها', 'browser' => 'مرورگرها', 'member' => 'مهمان و عضو') as $dim => $title) { $this->breakdown($f, $dim, $title); }
         echo '</div></section>';
@@ -444,13 +433,81 @@ class WPS_Admin {
         $this->breakdown($f, 'goal', 'تبدیل به تفکیک هدف');
         echo '<div class="wps-note"><strong>این اعداد چه می‌گویند؟</strong><p>یونیکِ کل بازه از مرورگرهای متمایز محاسبه می‌شود؛ جمع یونیک روزها، صفحه‌ها یا دسته‌ها الزاماً برابر یونیک کل نیست. یک مرورگر ممکن است هم در گروه مهمان و هم عضو دیده شود. داده‌ها فقط از زمان نصب جمع می‌شوند. ' . ($s['keep_forever'] ? 'حذف خودکار خاموش است.' : 'مدت نگهداری: '.esc_html($s['retention']).' روز.') . ' ستون‌های فهرست نوشته/برگه، کل دادهٔ موجود را نشان می‌دهند.</p><p>جاوااسکریپت مسدودشده، رد رضایت، حذف کوکی و ابزارهای مسدودکننده می‌توانند بر آمار اثر بگذارند. کشور، محل تقریبی IP اتصال است و ممکن است با VPN تغییر کند. آرشیوهایی که فقط در پارامتر آدرس تفاوت دارند، یک مسیر حساب می‌شوند.</p></div>';
     }
+    public function report_pages_ajax() {
+        if (!current_user_can('manage_options')) { wp_send_json_error(null, 403); }
+        check_ajax_referer('wps_report_pages');
+        $filters = WPS_Store::filters(wp_unslash($_GET));
+        ob_start();
+        $page = $this->report_pages($filters, $_GET['report_page'] ?? 1);
+        wp_send_json_success(array('page' => $page, 'html' => ob_get_clean()));
+    }
+
+    private function report_pages($filters, $requested) {
+        $per_page = 25;
+        $last = min(100000, max(1, (int) ceil(WPS_Store::page_count($filters) / $per_page)));
+        $page = min($last, max(1, is_scalar($requested) ? absint($requested) : 1));
+        $rows = WPS_Store::groups($filters, 'page_key', $per_page, ($page - 1) * $per_page);
+        $home = wp_parse_url(home_url('/'));
+        $origin = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : '');
+        echo '<div class="wps-table-scroll"><table class="wps-table"><thead><tr><th>صفحه</th><th>بازدید کل</th><th>یونیک</th><th>جزئیات</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $args = $filters;
+            $args['post_id'] = (int) $row['post_id'];
+            $args['page_key'] = $args['post_id'] ? '' : $row['label'];
+            $title = $row['title'] ?: $row['path'];
+            $url = '';
+            if ($args['post_id']) {
+                $post = get_post($args['post_id']);
+                if ($post && is_post_publicly_viewable($post) && $post->post_password === '') {
+                    $url = get_permalink($post);
+                }
+            } elseif (strpos($row['path'], '/') === 0) {
+                $url = $origin . $row['path'];
+            }
+            echo '<tr><td><strong>' . esc_html($title) . '</strong><small class="wps-path" dir="ltr">' . esc_html(rawurldecode($row['path'])) . '</small></td><td>' . esc_html(number_format_i18n($row['views'])) . '</td><td>' . esc_html(number_format_i18n($row['visitors'])) . '</td><td><div class="wps-page-actions"><a href="' . esc_url($this->report_url($args) . '#wps-report-pages') . '">گزارش صفحه ←</a>';
+            if ($url) {
+                echo '<a class="wps-open-page" href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer" title="باز کردن صفحه در تب جدید" aria-label="' . esc_attr('باز کردن ' . $title . ' در تب جدید') . '"><span aria-hidden="true">↗</span></a>';
+            }
+            echo '</div></td></tr>';
+        }
+        if (!$rows) { echo '<tr><td colspan="4">داده‌ای برای نمایش وجود ندارد.</td></tr>'; }
+        echo '</tbody></table></div>';
+        if ($last > 1) { $this->report_pages_navigation($filters, $page, $last); }
+        return $page;
+    }
+
+    private function report_pages_navigation($filters, $page, $last) {
+        $link = function ($number, $label, $description = '') use ($filters) {
+            $url = $this->report_url(array_merge($filters, array('report_page' => $number))) . '#wps-report-pages';
+            $aria = $description ? ' aria-label="' . esc_attr($description) . '"' : '';
+            echo '<a class="button" data-wps-report-page href="' . esc_url($url) . '"' . $aria . '>' . esc_html($label) . '</a>';
+        };
+        echo '<nav class="wps-pagination" aria-label="صفحه‌بندی صفحه‌ها و نوشته‌ها">';
+        if ($page > 1) { $link($page - 1, 'قبلی'); }
+        $numbers = array_unique(array_merge(array(1), range(max(1, $page - 2), min($last, $page + 2)), array($last)));
+        $previous = 0;
+        foreach ($numbers as $number) {
+            if ($number - $previous > 1) { echo '<span aria-hidden="true">…</span>'; }
+            $label = number_format_i18n($number);
+            if ($number === $page) {
+                echo '<span class="wps-page-current" aria-current="page" aria-label="' . esc_attr('صفحهٔ ' . $label) . '">' . esc_html($label) . '</span>';
+            } else {
+                $link($number, $label, 'صفحهٔ ' . $label);
+            }
+            $previous = $number;
+        }
+        if ($page < $last) { $link($page + 1, 'بعدی'); }
+        echo '</nav>';
+    }
+
     private function campaigns($filters, $views) {
         echo '<section class="wps-panel wps-campaigns"><h2>کمپین‌ها</h2>';
         if (!$views || !WPS_Store::has_campaign_tags($filters)) {
             $message = $views ? 'برای ' . number_format_i18n($views) . ' بازدید این بازه، برچسب کمپین ثبت نشده است.' : 'با فیلترهای فعلی بازدیدی برای گزارش کمپین وجود ندارد.';
             echo '<p>' . esc_html($message) . '</p>';
         } else {
-            echo '<details><summary>جزئیات منبع، رسانه و نام کمپین</summary><div class="wps-report-grid">';
+            $filtered = $filters['utm_source'] !== '' || $filters['utm_medium'] !== '' || $filters['utm_campaign'] !== '';
+            echo '<details' . ($filtered ? ' open' : '') . '><summary>جزئیات منبع، رسانه و نام کمپین</summary><div class="wps-report-grid">';
             foreach (array('utm_source' => 'منبع کمپین‌ها', 'utm_medium' => 'رسانهٔ کمپین‌ها', 'utm_campaign' => 'نام کمپین‌ها') as $dimension => $title) {
                 $this->breakdown($filters, $dimension, $title);
             }
@@ -466,13 +523,13 @@ class WPS_Admin {
         echo '<div class="wps-google-channels">';
         foreach (WPS_Acquisition::labels() as $channel => $label) {
             $row = $rows[$channel] ?? array('views' => 0, 'visitors' => 0);
-            $url = $this->report_url(array_merge($filters, array('google_channel' => $channel)));
+            $url = $this->report_url(array_merge($filters, array('google_channel' => $channel))) . '#wps-google-acquisition';
             echo '<a class="wps-google-channel" href="' . esc_url($url) . '"' . ($selection === $channel ? ' aria-current="true"' : '') . '><strong>' . esc_html($label) . '</strong>';
             echo '<span><b>' . esc_html(number_format_i18n((int) $row['views'])) . '</b> بازدید صفحه · <b>' . esc_html(number_format_i18n((int) $row['visitors'])) . '</b> مرورگر یونیک</span></a>';
         }
         echo '</div>';
         if ($selection !== '') {
-            echo '<p><a href="' . esc_url($this->report_url($filters)) . '">برداشتن فیلتر نوع ورودی گوگل</a></p>';
+            echo '<p><a href="' . esc_url($this->report_url($filters) . '#wps-google-acquisition') . '">برداشتن فیلتر نوع ورودی گوگل</a></p>';
         }
         echo '<p class="wps-muted">هر کارت گزارش را فیلتر می‌کند. اگر تنها نشانه، دامنهٔ گوگل باشد، بازدید در «نوع نامشخص» می‌آید.</p></section>';
     }
@@ -489,7 +546,8 @@ class WPS_Admin {
     }
     private function breakdown($f, $dim, $title) {
         $rows = WPS_Store::groups($f, $dim, 25);
-        echo '<section class="wps-panel"><div class="wps-section-title"><h2>' . esc_html($title) . '</h2>' . $this->export_link($f, $dim) . '</div>';
+        $anchor = 'wps-breakdown-' . $dim;
+        echo '<section id="' . esc_attr($anchor) . '" class="wps-panel wps-breakdown"><div class="wps-section-title"><h2>' . esc_html($title) . '</h2>' . $this->export_link($f, $dim) . '</div>';
         if ($dim === 'utm_source') {
             echo '<p class="wps-muted">منبعِ برچسب‌خوردهٔ لینک (utm_source). آمار تبلیغات و جست‌وجو در <a href="#wps-google-acquisition">بخش منابع بازدید</a> است.</p>';
         }
@@ -503,7 +561,7 @@ class WPS_Admin {
             if (strpos($dim,'utm_')===0 && !$label) { $label='بدون برچسب'; }
             if ($dim==='goal') { $goal=WPS_Features::goal($label); $label=$goal ? $goal['label'] : $label; }
             $label_html = esc_html($label);
-            if (in_array($dim, array('country','browser','device','member','utm_source','utm_medium','utm_campaign'), true) && $r['label'] !== '') { $label_html = '<a href="' . esc_url($this->report_url(array_merge($f, array($dim => $r['label'])))) . '">' . $label_html . '</a>'; }
+            if (in_array($dim, array('country','browser','device','member','utm_source','utm_medium','utm_campaign'), true) && $r['label'] !== '') { $label_html = '<a href="' . esc_url($this->report_url(array_merge($f, array($dim => $r['label']))) . '#' . $anchor) . '">' . $label_html . '</a>'; }
             echo '<tr><td>' . $label_html . '</td><td>' . esc_html(number_format_i18n($r['views'])) . '</td><td>' . esc_html(number_format_i18n($r['visitors'])) . '</td></tr>';
         }
         if (!$rows) { echo '<tr><td colspan="3">هنوز داده‌ای نیست.</td></tr>'; }

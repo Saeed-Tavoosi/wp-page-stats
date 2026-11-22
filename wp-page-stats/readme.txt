@@ -1,7 +1,7 @@
 === WP Page Stats | آمار صفحات ===
 Requires at least: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.5
+Stable tag: 1.3.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -87,6 +87,10 @@ Consent-required defaults off; configure this and your privacy policy before use
 * Fresh installs default to 30-day retention; version-1 settings remain unchanged.
 
 == Changelog ==
+= 1.3.6 =
+ردیف‌های گزارش صفحه‌ها لینک باز کردن صفحه در تب جدید دارند. صفحه‌بندی شماره‌دار فهرست را بدون بارگذاری دوبارهٔ گزارش عوض می‌کند.
+لینک‌های فیلتر در گزارش نتیجه را در همان بخش باز می‌کنند.
+
 = 1.3.5 =
 با ورود دوباره به سایت، انتساب کمپین از نو شروع می‌شود. در حرکت بین صفحات داخلی، کمپین همان ورود حفظ می‌شود.
 گزارش بازدید با بخش‌های خلاصه، روند روزانه، منابع، صفحات و مخاطبان و کمپین‌ها مرتب شد. کارت‌های گوگل واحد شمارش را نشان می‌دهند و بازدیدهای بدون برچسب کمپین در یک خلاصه نمایش داده می‌شوند.

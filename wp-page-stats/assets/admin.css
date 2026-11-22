@@ -48,7 +48,23 @@
 .wps-developer { color:#49665c; font-size:12px; }
 @media(max-width:650px) { .wps-release { align-items:flex-start; } }
 
-#wps-google-acquisition { scroll-margin-block-start: 55px; }
+#wps-google-acquisition, #wps-report-pages, #wps-report-filters, .wps-breakdown { scroll-margin-block-start: 60px; }
+.wps-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wps-open-page {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 7px;
+    text-decoration: none; font-size: 17px;
+}
+.wps-open-page:hover { border-color: var(--accent); background: #e6f1ec; }
+.wps-pagination { flex-wrap: wrap; gap: 6px; }
+.wps-pagination .button, .wps-page-current {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 36px;
+}
+.wps-page-current {
+    min-height: 36px; border-radius: 7px; color: white; background: var(--accent); font-weight: 700;
+}
+.wps-page-status { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.wps-page-status:empty { margin: 0; }
 .wps-report-context { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; }
 .wps-report-context .wps-badge { white-space: normal; overflow-wrap: anywhere; }
 .wps-report-cards {

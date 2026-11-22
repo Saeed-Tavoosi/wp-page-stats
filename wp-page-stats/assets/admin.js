@@ -21,6 +21,66 @@
       reindexGoals();
     });
   }
+  var pageResults = document.getElementById('wps-report-page-results');
+  if (pageResults && window.fetch && window.AbortController) {
+    var pageHeading = document.getElementById('wps-report-pages-title');
+    var pageStatus = document.getElementById('wps-report-pages-status');
+    var pageRequest;
+    var currentPage = new URL(location.href).searchParams.get('report_page') || '1';
+
+    async function loadReportPage(url, navigate) {
+      if (pageRequest) pageRequest.abort();
+      var request = new AbortController();
+      pageRequest = request;
+      pageResults.setAttribute('aria-busy', 'true');
+      pageStatus.textContent = 'در حال دریافت فهرست…';
+      try {
+        var endpoint = new URL(window.WPSAdmin.ajax, location.href);
+        url.searchParams.forEach(function (value, key) { endpoint.searchParams.set(key, value); });
+        endpoint.searchParams.set('action', 'wps_report_pages');
+        endpoint.searchParams.set('_ajax_nonce', window.WPSAdmin.pagesNonce);
+        var response = await fetch(endpoint, {credentials: 'same-origin', signal: request.signal});
+        if (!response.ok) throw new Error('Report request failed');
+        var result = await response.json();
+        if (pageRequest !== request) return;
+        if (!result.success || typeof result.data.html !== 'string') throw new Error('Invalid report');
+        currentPage = String(result.data.page);
+        pageResults.innerHTML = result.data.html;
+        pageStatus.textContent = 'صفحهٔ ' + new Intl.NumberFormat('fa-IR').format(result.data.page) + ' نمایش داده شد.';
+        if (navigate) {
+          url.searchParams.set('report_page', currentPage);
+          history.pushState(null, '', url);
+          pageHeading.focus({preventScroll: true});
+          pageHeading.closest('section').scrollIntoView({block: 'start'});
+        }
+      } catch (_) {
+        if (pageRequest !== request) return;
+        pageStatus.textContent = 'دریافت فهرست انجام نشد. ';
+        var fallback = document.createElement('a');
+        fallback.href = url.href;
+        fallback.textContent = 'باز کردن صفحهٔ گزارش';
+        pageStatus.appendChild(fallback);
+      } finally {
+        if (pageRequest === request) {
+          pageRequest = null;
+          pageResults.removeAttribute('aria-busy');
+        }
+      }
+    }
+
+    pageResults.addEventListener('click', function (event) {
+      var link = event.target.closest('a[data-wps-report-page]');
+      if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      loadReportPage(new URL(link.href), true);
+    });
+    window.addEventListener('popstate', function () {
+      var url = new URL(location.href);
+      if (pageRequest || (url.searchParams.get('report_page') || '1') !== currentPage) {
+        loadReportPage(url, false);
+      }
+    });
+  }
   var input = document.getElementById('wps-page-search');
   if (!input) return;
   var output = document.getElementById('wps-page-results');

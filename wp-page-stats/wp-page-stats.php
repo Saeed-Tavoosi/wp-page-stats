@@ -3,7 +3,7 @@
  * Plugin Name: آمار صفحات | WP Page Stats
  * Plugin URI: https://github.com/Saeed-Tavoosi/wp-page-stats
  * Description: آمار بازدید کل و یونیک با تفکیک صفحه، کشور، مرورگر، دستگاه و مهمان/عضو؛ همراه ستون‌های نوشته و برگه.
- * Version: 1.3.5
+ * Version: 1.3.6
  * Update URI: https://github.com/Saeed-Tavoosi/wp-page-stats
  * Requires at least: 6.4
  * Author: سعید طاوسی
@@ -12,7 +12,7 @@
  * Text Domain: wp-page-stats
  */
 defined('ABSPATH') || exit;
-define('WPS_VERSION', '1.3.5');
+define('WPS_VERSION', '1.3.6');
 define('WPS_FILE', __FILE__);
 define('WPS_DIR', plugin_dir_path(__FILE__));
 require_once WPS_DIR . 'includes/class-wps-store.php';
