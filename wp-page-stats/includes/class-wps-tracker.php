@@ -52,7 +52,7 @@ class WPS_Tracker {
             'cookieName' => 'wps_visitor_' . get_current_blog_id(),
             'goals' => wps_settings()['goals'],
         );
-        wp_enqueue_script('wps-tracker', plugins_url('assets/tracker.js', WPS_FILE), array(), WPS_VERSION, true);
+        wp_enqueue_script('wps-tracker', plugins_url('assets/tracker.js', WPS_FILE), array(), WPS_VERSION . '.' . filemtime(WPS_DIR . 'assets/tracker.js'), true);
         wp_add_inline_script('wps-tracker', 'window.WPSConfig=' . wp_json_encode($config) . ';', 'before');
     }
 

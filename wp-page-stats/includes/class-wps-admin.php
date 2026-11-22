@@ -183,7 +183,7 @@ class WPS_Admin {
         if (!in_array($_GET['page'] ?? '',array('wp-page-stats','wps-settings','wps-data'),true)) { return; }
         wp_enqueue_style('wps-checks', plugins_url('assets/checks.css',WPS_FILE),array(),WPS_VERSION);
         wp_enqueue_script('wps-controls',plugins_url('assets/controls.js',WPS_FILE),array('wps-admin'),WPS_VERSION,true);
-        wp_enqueue_style('wps-admin', plugins_url('assets/admin.css', WPS_FILE), array(), WPS_VERSION);
+        wp_enqueue_style('wps-admin', plugins_url('assets/admin.css', WPS_FILE), array(), WPS_VERSION . '.' . filemtime(WPS_DIR . 'assets/admin.css'));
         wp_enqueue_script('wps-calendar', plugins_url('assets/calendar.js', WPS_FILE), array(), WPS_VERSION, true);
         wp_enqueue_script('wps-admin', plugins_url('assets/admin.js', WPS_FILE), array('wps-calendar'), WPS_VERSION, true);
         wp_add_inline_script('wps-admin', 'window.WPSAdmin=' . wp_json_encode(array('ajax' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('wps_find_page'))) . ';', 'before');
@@ -392,17 +392,35 @@ class WPS_Admin {
             echo '<a href="' . esc_url($this->report_url(array_merge($f, array('from' => wp_date('Y-m-d', time() - ($days - 1) * DAY_IN_SECONDS), 'to' => wp_date('Y-m-d'))))) . '">' . esc_html($label) . '</a>';
         }
         echo '</div>';
-        $summary = WPS_Store::summary($f);
-        echo '<div class="wps-cards">';
-        foreach (array('views' => array('بازدید کل', 'هر بار نمایش صفحه'), 'visitors' => array('بازدیدکنندهٔ یونیک', 'مرورگرهای متمایز در این بازه'), 'guests' => array('بازدید مهمان‌ها', 'بدون ورود به حساب'), 'members' => array('بازدید اعضا', 'با ورود به حساب')) as $key => $copy) {
-            echo '<article class="wps-card"><span>' . esc_html($copy[0]) . '</span><strong>' . esc_html(number_format_i18n($summary[$key])) . '</strong><small>' . esc_html($copy[1]) . '</small></article>';
+        $active = array(
+            'صفحه' => $f['post_id'] ? (get_the_title($f['post_id']) ?: '#' . $f['post_id']) : ($f['page_key'] ? 'مسیر انتخاب‌شده' : ''),
+            'کشور' => $country_items[$f['country']] ?? '',
+            'مرورگر' => $f['browser'],
+            'دستگاه' => array('Desktop' => 'رایانه', 'Mobile' => 'موبایل', 'Tablet' => 'تبلت')[$f['device']] ?? '',
+            'کاربر' => array('0' => 'مهمان', '1' => 'عضو')[$f['member']] ?? '',
+            'ورودی گوگل' => WPS_Acquisition::labels()[$f['google_channel']] ?? '',
+            'منبع کمپین' => $f['utm_source'],
+            'رسانهٔ کمپین' => $f['utm_medium'],
+            'نام کمپین' => $f['utm_campaign'],
+        );
+        echo '<div class="wps-report-context"><span>بازهٔ گزارش از <span data-wps-date="' . esc_attr($f['from']) . '">' . esc_html($f['from']) . '</span> تا <span data-wps-date="' . esc_attr($f['to']) . '">' . esc_html($f['to']) . '</span></span>';
+        foreach (array_filter($active, static function ($value) { return $value !== ''; }) as $label => $value) {
+            echo '<span class="wps-badge">' . esc_html($label) . ' <bdi>' . esc_html($value) . '</bdi></span>';
         }
         echo '</div>';
+        $summary = WPS_Store::summary($f);
+        echo '<div class="wps-cards wps-report-cards">';
+        foreach (array('views' => array('بازدید کل', 'هر بار نمایش صفحه'), 'visitors' => array('مرورگر یونیک', 'مرورگرهای متمایز در این بازه')) as $key => $copy) {
+            echo '<article class="wps-card"><span>' . esc_html($copy[0]) . '</span><strong>' . esc_html(number_format_i18n($summary[$key])) . '</strong><small>' . esc_html($copy[1]) . '</small></article>';
+        }
+        echo '</div><p class="wps-audience-summary">بازدید مهمان‌ها <strong>' . esc_html(number_format_i18n($summary['guests'])) . '</strong> · بازدید اعضا <strong>' . esc_html(number_format_i18n($summary['members'])) . '</strong></p>';
         if (!$summary['views']) { echo '<div class="wps-panel wps-empty"><h2>در این بازه هنوز بازدیدی ثبت نشده</h2><p>یک صفحهٔ عمومی را در مرورگر مهمان باز کنید یا فیلترها را تغییر دهید. بازدید مدیر به‌صورت پیش‌فرض شمرده نمی‌شود.</p></div>'; }
-        $this->google_channels($f);
         $this->chart($f);
         WPS_Features::comparison($f,$summary);
-        WPS_Features::conversions_report($f,$summary);
+        echo '<section class="wps-report-section" aria-labelledby="wps-traffic-title"><h2 id="wps-traffic-title">منابع بازدید</h2><div class="wps-report-grid">';
+        $this->google_channels($f);
+        $this->breakdown($f, 'referrer', 'سایت‌های ارجاع‌دهنده');
+        echo '</div></section><section class="wps-report-section" aria-labelledby="wps-audience-title"><h2 id="wps-audience-title">صفحات و مخاطبان</h2>';
         $page = min(100000, max(1, absint($_GET['report_page'] ?? 1)));
         $rows = WPS_Store::groups($f, 'page_key', 26, ($page - 1) * 25);
         $next = count($rows) > 25; $rows = array_slice($rows, 0, 25);
@@ -419,26 +437,44 @@ class WPS_Admin {
         echo '<span>صفحهٔ ' . esc_html(number_format_i18n($page)) . '</span>';
         if ($next) { echo '<a class="button" href="' . esc_url($this->report_url(array_merge($f, array('report_page' => $page + 1)))) . '">بعدی</a>'; }
         echo '</div></section><div class="wps-breakdowns">';
-        foreach (array('country' => 'کشورها', 'browser' => 'مرورگرها', 'member' => 'مهمان و عضو', 'device' => 'دستگاه‌ها', 'referrer' => 'سایت‌های ارجاع‌دهنده', 'utm_source'=>'منبع کمپین‌ها','utm_medium'=>'رسانهٔ کمپین‌ها','utm_campaign'=>'نام کمپین‌ها','goal'=>'تبدیل به تفکیک هدف') as $dim => $title) { $this->breakdown($f, $dim, $title); }
-        echo '</div><div class="wps-note"><strong>این اعداد چه می‌گویند؟</strong><p>یونیکِ کل بازه از مرورگرهای متمایز محاسبه می‌شود؛ جمع یونیک روزها، صفحه‌ها یا دسته‌ها الزاماً برابر یونیک کل نیست. یک مرورگر ممکن است هم در گروه مهمان و هم عضو دیده شود. داده‌ها فقط از زمان نصب جمع می‌شوند. ' . ($s['keep_forever'] ? 'حذف خودکار خاموش است.' : 'مدت نگهداری: '.esc_html($s['retention']).' روز.') . ' ستون‌های فهرست نوشته/برگه، کل دادهٔ موجود را نشان می‌دهند.</p><p>جاوااسکریپت مسدودشده، رد رضایت، حذف کوکی و ابزارهای مسدودکننده می‌توانند بر آمار اثر بگذارند. کشور، محل تقریبی IP اتصال است و ممکن است با VPN تغییر کند. آرشیوهایی که فقط در پارامتر آدرس تفاوت دارند، یک مسیر حساب می‌شوند.</p></div>';
+        foreach (array('country' => 'کشورها', 'device' => 'دستگاه‌ها', 'browser' => 'مرورگرها', 'member' => 'مهمان و عضو') as $dim => $title) { $this->breakdown($f, $dim, $title); }
+        echo '</div></section>';
+        $this->campaigns($f, $summary['views']);
+        WPS_Features::conversions_report($f,$summary);
+        $this->breakdown($f, 'goal', 'تبدیل به تفکیک هدف');
+        echo '<div class="wps-note"><strong>این اعداد چه می‌گویند؟</strong><p>یونیکِ کل بازه از مرورگرهای متمایز محاسبه می‌شود؛ جمع یونیک روزها، صفحه‌ها یا دسته‌ها الزاماً برابر یونیک کل نیست. یک مرورگر ممکن است هم در گروه مهمان و هم عضو دیده شود. داده‌ها فقط از زمان نصب جمع می‌شوند. ' . ($s['keep_forever'] ? 'حذف خودکار خاموش است.' : 'مدت نگهداری: '.esc_html($s['retention']).' روز.') . ' ستون‌های فهرست نوشته/برگه، کل دادهٔ موجود را نشان می‌دهند.</p><p>جاوااسکریپت مسدودشده، رد رضایت، حذف کوکی و ابزارهای مسدودکننده می‌توانند بر آمار اثر بگذارند. کشور، محل تقریبی IP اتصال است و ممکن است با VPN تغییر کند. آرشیوهایی که فقط در پارامتر آدرس تفاوت دارند، یک مسیر حساب می‌شوند.</p></div>';
+    }
+    private function campaigns($filters, $views) {
+        echo '<section class="wps-panel wps-campaigns"><h2>کمپین‌ها</h2>';
+        if (!$views || !WPS_Store::has_campaign_tags($filters)) {
+            $message = $views ? 'برای ' . number_format_i18n($views) . ' بازدید این بازه، برچسب کمپین ثبت نشده است.' : 'با فیلترهای فعلی بازدیدی برای گزارش کمپین وجود ندارد.';
+            echo '<p>' . esc_html($message) . '</p>';
+        } else {
+            echo '<details><summary>جزئیات منبع، رسانه و نام کمپین</summary><div class="wps-report-grid">';
+            foreach (array('utm_source' => 'منبع کمپین‌ها', 'utm_medium' => 'رسانهٔ کمپین‌ها', 'utm_campaign' => 'نام کمپین‌ها') as $dimension => $title) {
+                $this->breakdown($filters, $dimension, $title);
+            }
+            echo '</div></details>';
+        }
+        echo '</section>';
     }
     private function google_channels($filters) {
         $selection = $filters['google_channel'];
         $filters['google_channel'] = '';
         $rows = array_column(WPS_Store::groups($filters, 'google_channel', 3), null, 'label');
-        echo '<section id="wps-google-acquisition" class="wps-panel"><div class="wps-section-title"><h2>تفکیک ورودی گوگل</h2>' . $this->export_link($filters, 'google_channel') . '</div>';
+        echo '<section id="wps-google-acquisition" class="wps-panel"><div class="wps-section-title"><h3>بازدید صفحات به تفکیک منبع گوگل</h3>' . $this->export_link($filters, 'google_channel') . '</div>';
         echo '<div class="wps-google-channels">';
         foreach (WPS_Acquisition::labels() as $channel => $label) {
             $row = $rows[$channel] ?? array('views' => 0, 'visitors' => 0);
             $url = $this->report_url(array_merge($filters, array('google_channel' => $channel)));
             echo '<a class="wps-google-channel" href="' . esc_url($url) . '"' . ($selection === $channel ? ' aria-current="true"' : '') . '><strong>' . esc_html($label) . '</strong>';
-            echo '<span><b>' . esc_html(number_format_i18n((int) $row['views'])) . '</b> بازدید · <b>' . esc_html(number_format_i18n((int) $row['visitors'])) . '</b> یونیک</span></a>';
+            echo '<span><b>' . esc_html(number_format_i18n((int) $row['views'])) . '</b> بازدید صفحه · <b>' . esc_html(number_format_i18n((int) $row['visitors'])) . '</b> مرورگر یونیک</span></a>';
         }
         echo '</div>';
         if ($selection !== '') {
             echo '<p><a href="' . esc_url($this->report_url($filters)) . '">برداشتن فیلتر نوع ورودی گوگل</a></p>';
         }
-        echo '<p class="wps-muted">هر کارت را برای فیلتر گزارش انتخاب کنید. برای بازدیدهای قبلی هم از برچسب‌های ذخیره‌شده استفاده می‌شود. اگر تنها نشانه، دامنهٔ گوگل باشد، بازدید در «نوع نامشخص» می‌آید.</p></section>';
+        echo '<p class="wps-muted">هر کارت گزارش را فیلتر می‌کند. اگر تنها نشانه، دامنهٔ گوگل باشد، بازدید در «نوع نامشخص» می‌آید.</p></section>';
     }
     private function export_link($f, $dimension) {
         $url = add_query_arg(array_merge($f, array('action' => 'wps_export', 'dimension' => $dimension)), admin_url('admin-post.php'));
@@ -455,7 +491,7 @@ class WPS_Admin {
         $rows = WPS_Store::groups($f, $dim, 25);
         echo '<section class="wps-panel"><div class="wps-section-title"><h2>' . esc_html($title) . '</h2>' . $this->export_link($f, $dim) . '</div>';
         if ($dim === 'utm_source') {
-            echo '<p class="wps-muted">منبعِ برچسب‌خوردهٔ لینک (utm_source). برای آمار تبلیغات و جست‌وجو، <a href="#wps-google-acquisition">تفکیک ورودی گوگل</a> را ببینید.</p>';
+            echo '<p class="wps-muted">منبعِ برچسب‌خوردهٔ لینک (utm_source). آمار تبلیغات و جست‌وجو در <a href="#wps-google-acquisition">بخش منابع بازدید</a> است.</p>';
         }
         echo '<div class="wps-table-scroll"><table class="wps-table"><thead><tr><th>عنوان</th><th>'.($dim==='goal' ? 'تبدیل' : 'کل').'</th><th>'.($dim==='goal' ? 'مرورگر' : 'یونیک').'</th></tr></thead><tbody>';
         foreach ($rows as $r) {

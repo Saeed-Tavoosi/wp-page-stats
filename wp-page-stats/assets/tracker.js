@@ -60,9 +60,9 @@
       origin: external ? referrer.origin : '',
       search: Boolean(external && /^\/search\/?$/.test(referrer.pathname))
     } : null;
-    if (!referrer && !entry) {
-      // An untagged navigation without a referrer may be a new direct visit.
-      try { sessionStorage.removeItem(entryKey); } catch (_) {}
+    if (entry || !referrer) {
+      // Start both attribution records from the same landing.
+      clearAttribution();
     }
     return {
       tags: attribution(attributionKey, tagged ? tags : null),

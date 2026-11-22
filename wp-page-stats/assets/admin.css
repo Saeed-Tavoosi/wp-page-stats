@@ -49,6 +49,28 @@
 @media(max-width:650px) { .wps-release { align-items:flex-start; } }
 
 #wps-google-acquisition { scroll-margin-block-start: 55px; }
+.wps-report-context { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; }
+.wps-report-context .wps-badge { white-space: normal; overflow-wrap: anywhere; }
+.wps-report-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0;
+}
+.wps-audience-summary { margin: 8px 0 22px; color: var(--muted); }
+.wps-report-section { margin-bottom: 22px; }
+.wps-report-section > h2 { font-size: 17px; color: var(--ink); }
+.wps-report-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+}
+.wps-report-grid > .wps-panel { margin: 0; }
+.wps-section-title h3 { margin: 0; color: var(--ink); }
+.wps-campaigns summary { cursor: pointer; }
+.wps-campaigns .wps-report-grid { margin-top: 16px; }
+@media (max-width: 850px) {
+    .wps-report-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .wps-google-channels {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));

@@ -181,6 +181,13 @@ class WPS_Store {
         return $wpdb->get_results($wpdb->prepare("SELECT $group AS label, COUNT(*) AS views, COUNT(DISTINCT visitor) AS visitors $extra FROM " . self::table() . " WHERE event_type = %s AND " . $where . " GROUP BY label$having ORDER BY $order LIMIT %d OFFSET %d", $type, $limit, $offset), ARRAY_A);
     }
 
+    public static function has_campaign_tags($f) {
+        global $wpdb;
+        return (bool) $wpdb->get_var('SELECT 1 FROM ' . self::table()
+            . " WHERE event_type = 'pageview' AND (utm_source <> '' OR utm_medium <> '' OR utm_campaign <> '') AND "
+            . self::where($f) . ' LIMIT 1');
+    }
+
     public static function conversions($f) {
         global $wpdb;
         $t = self::table(); $where = self::where($f);
